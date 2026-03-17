@@ -6,7 +6,7 @@ Claude Code skill for cleaning up messy feature branches before code review.
 
 Takes a feature branch full of unintended changes (junk docs, newlines, reformats) and disorganized commits, and rewrites it into a clean, review-friendly commit history matching the target repo's conventions.
 
-The suspiciously 
+The suspicious changes will be left in the working copy.
 
 ## Installation
 
