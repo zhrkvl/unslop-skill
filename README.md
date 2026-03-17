@@ -4,11 +4,13 @@ Claude Code skill for cleaning up messy feature branches before code review.
 
 ## What it does
 
-Takes a feature branch full of AI-generated slop (progress trackers, junk docs, obvious comments, agent artifacts) and disorganized commits, and rewrites it into a clean, review-friendly commit history matching the target repo's conventions.
+Takes a feature branch full of unintended changes (junk docs, newlines, reformats) and disorganized commits, and rewrites it into a clean, review-friendly commit history matching the target repo's conventions.
+
+The suspiciously 
 
 ## Installation
 
-`git clone <repo-url> ~/.claude/skills/git-unslop`
+`git clone https://github.com/zhrkvl/unslop-skill.git ~/.claude/skills/git-unslop`
 
 ## Usage
 
