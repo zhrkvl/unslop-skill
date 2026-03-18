@@ -161,9 +161,9 @@ cat > /tmp/rebase-plan.txt << 'PLAN'
 pick <sha> feat: real work
 drop <sha> chore: update progress - slop
 pick <sha> feat: more real work
-exec git rm tasks/prd-klang-format-parity-v2.md 2>/dev/null; git -c commit.gpgsign=false commit --no-verify --amend --no-edit
+exec git rm tasks/prd-klang-format-parity-v2.md 2>/dev/null; git commit --amend --no-edit
 drop <sha> chore: update PRD - slop
-exec git rm --cached scripts/ralph/prd.json scripts/ralph/progress.txt 2>/dev/null; git -c commit.gpgsign=false commit --no-verify -m "chore: untrack AI progress files"
+exec git rm --cached scripts/ralph/prd.json scripts/ralph/progress.txt 2>/dev/null; git commit -m "chore: untrack AI progress files"
 PLAN
 
 # 5. Write a sequence editor script that replaces the default editor
@@ -174,9 +174,8 @@ EOF
 chmod +x /tmp/rebase-seq-editor.sh
 
 # 6. Run non-interactive rebase
-# IMPORTANT: always use -c commit.gpgsign=false AND -X ours
 GIT_SEQUENCE_EDITOR=/tmp/rebase-seq-editor.sh \
-  git -c commit.gpgsign=false rebase -i -X ours $MERGE_BASE
+  git rebase -i -X ours $MERGE_BASE
 
 # 7. After rebase: restore preserved working-tree files
 cp /tmp/klang-unslop-preserve/prd.json scripts/ralph/ 2>/dev/null
@@ -192,20 +191,20 @@ Use `exec` lines to clean slop from mixed commits (pick + exec pattern):
 
 ```
 pick c08409c feat: [US-183] - Fix AlignOperands
-exec git rm tasks/prd-klang-format-parity-v2.md 2>/dev/null; git -c commit.gpgsign=false commit --no-verify --amend --no-edit
+exec git rm tasks/prd-klang-format-parity-v2.md 2>/dev/null; git commit --amend --no-edit
 ```
 
 To recreate a commit from scratch (drop + exec pattern):
 
 ```
 drop c0fac69 chore: replace Beads - drop, recreate clean
-exec git checkout c0fac69 -- .gitignore AGENTS.md docs/deviations.md && git rm -rf .beads/ && git -c commit.gpgsign=false commit --no-verify -m "chore: remove Beads tracking, update AGENTS.md"
+exec git checkout c0fac69 -- .gitignore AGENTS.md docs/deviations.md && git rm -rf .beads/ && git commit -m "chore: remove Beads tracking, update AGENTS.md"
 ```
 
 To revert a file to its parent's state inside exec (removes one commit's changes to a file):
 
 ```
-exec git show HEAD~1:scripts/ralph/prd.json > scripts/ralph/prd.json && git add scripts/ralph/prd.json; git -c commit.gpgsign=false commit --no-verify --amend --no-edit
+exec git show HEAD~1:scripts/ralph/prd.json > scripts/ralph/prd.json && git add scripts/ralph/prd.json; git commit --amend --no-edit
 ```
 
 ### For mixed files (slop inside real changes):
@@ -244,36 +243,17 @@ Present the final state to the user.
 
 ## Execution Pitfalls (Learned in Practice)
 
-### 1. GPG commit signing breaks non-interactive rebase
-When repos use GPG signing, `git rebase -i` will fail with:
-```
-gpg: signing failed: Operation cancelled
-error: failed to write commit object
-```
-**Fix:** Always use `git -c commit.gpgsign=false rebase -i ...` AND add `-c commit.gpgsign=false` to every `git commit` inside exec commands.
-
-### 2. Pre-commit hooks break exec commands
-Custom hooks (e.g., Beads `bd sync --flush-only`, or other tools) can fail inside exec commands because the environment differs from a normal commit.
-```
-Error: Failed to flush bd changes to JSONL
-error: cannot rebase: Your index contains uncommitted changes.
-```
-**Fix:** Add `--no-verify` to every `git commit` and `git commit --amend` inside exec lines:
-```bash
-exec git rm slop.md; git -c commit.gpgsign=false commit --no-verify --amend --no-edit
-```
-
-### 3. Conflict in tracking files when dropping progress-update commits
+### 1. Conflict in tracking files when dropping progress-update commits (use `-X ours`)
 When a branch has alternating `feat:` commits (that also touch `prd.json`, `progress.txt`) and `chore: update progress` commits (dropped), the picked feat commits' diffs for `prd.json` no longer apply cleanly because the dropped commits changed the base.
 ```
 CONFLICT (content): Merge conflict in scripts/ralph/prd.json
 ```
 **Fix:** Use `-X ours` strategy — it automatically accepts "ours" for all conflicts. Since only tracking files conflict (source files are linear), this is safe:
 ```bash
-git -c commit.gpgsign=false rebase -i -X ours $MERGE_BASE
+git rebase -i -X ours $MERGE_BASE
 ```
 
-### 4. Working tree file preservation during rebase
+### 2. Working tree file preservation during rebase
 Git rebase resets the working tree to the base commit. Files that only exist in dropped commits will disappear from the working tree. Files that were tracked (modified) and then dropped will revert to base state.
 
 **Fix:** Before the rebase, manually copy files you want to preserve to `/tmp/`, then restore after:
@@ -284,11 +264,11 @@ mkdir -p /tmp/preserve && cp scripts/ralph/prd.json /tmp/preserve/
 cp /tmp/preserve/prd.json scripts/ralph/
 ```
 
-### 5. `git stash pop` fails if you've already manually restored files
+### 3. `git stash pop` fails if you've already manually restored files
 If you restore working-tree files manually before popping the stash, `git stash pop` will error: "untracked working tree files would be overwritten by merge."
 **Fix:** Use `git stash drop` instead — the important files are already restored.
 
-### 6. Verify all SHAs are in the plan before running
+### 4. Verify all SHAs are in the plan before running
 Double-check the plan counts:
 ```bash
 # Count unique SHAs in plan == total commits on branch
@@ -297,7 +277,7 @@ git log --format="%H" $MERGE_BASE..HEAD | wc -l
 ```
 Any mismatch means a commit was omitted, which would cause the rebase to stop at an unexpected conflict.
 
-### 7. `git log --oneline BASE..HEAD` vs merge-base
+### 5. `git log --oneline BASE..HEAD` vs merge-base
 For long-running branches, `BASE..HEAD` shows commits reachable from HEAD but not from BASE, which may differ from what you expect if BASE has moved. Use `git merge-base HEAD BASE` to find the true divergence point.
 
 ## Edge Cases
